@@ -2,8 +2,15 @@ import axios from "axios";
 import { load } from "cheerio";
 import { green, red } from "colorette";
 import { NodeHtmlMarkdown } from "node-html-markdown";
+import { config } from "dotenv";
 
 import { writeFileSync, readFileSync } from "fs";
+import Downloader from "nodejs-file-downloader";
+import slugify from "slugify";
+
+config();
+
+const amazonCode = process.env.AMAZONE_CODE ?? "djguider-20";
 
 const getUrls = async (urlPath: string) => {
   const urls: string[] = [];
@@ -41,62 +48,60 @@ const getPost = async (postPath: string) => {
   } catch (error) {}
 
   try {
-    data.image = $("img.wp-post-image").attr("src") ?? "";
+    const image = $("img.wp-post-image").attr("src");
+
+    if (image && image.trim().length > 0) {
+      const downloader = new Downloader({
+        url: image, //If the file name already exists, a new file with the name 200MB1.zip is created.
+        directory: "./images", //This folder will be created, if it doesn't exist.
+      });
+      try {
+        const { filePath, downloadStatus } = await downloader.download(); //Downloader.download() resolves with some useful properties.
+
+        if (filePath)
+          data.image = filePath.replace("./images/", "/images/posts/");
+      } catch (error) {}
+    }
   } catch (error) {}
 
   try {
     const content = $("div.entry-content").html() ?? "";
 
-    data.content = NodeHtmlMarkdown.translate(content);
+    data.content = NodeHtmlMarkdown.translate(
+      content.replaceAll("pdhresalam-20", amazonCode)
+    );
   } catch (error) {}
 
-  return data;
+  const postFilePath = slugify(data.title, {
+    lower: true,
+    trim: true,
+  });
+
+  writeFileSync(
+    `./posts/${postFilePath}.md`,
+    `---\ntitle: "${data.title}"\ndescription: "${data.content.slice(
+      0,
+      150
+    )}"\ndate: "${new Date().toISOString()}"\nimage: "${
+      data.image
+    }"\ncategories: []\nauthors: ["Deana Stallings"]\ntags: []\ndraft: false\n---\n\n${
+      data.content
+    }`
+  );
 };
 
 const init = async () => {
-  // try {
-  //   const postsList: string[] = [];
-
-  //   const urls = await getUrls("https://www.pdhre.org/sitemap.xml");
-
-  //   writeFileSync("./urls.json", JSON.stringify(urls));
-
-  //   return;
-
-  //   for (const [index, url] of urls.splice(0, 1).entries()) {
-  //     try {
-  //       const posts = await getUrls(url);
-
-  //       console.log(posts);
-
-  //       postsList.push(...posts);
-
-  //       console.log(green(`Posts index succedess: ${index}`));
-  //     } catch (error) {
-  //       console.log(red(`Posts index failed: ${index}`));
-  //     }
-  //   }
-
-  //   writeFileSync("./urls.json", JSON.stringify(postsList));
-  // } catch (error) {
-  //   console.log(error);
-  // }
-
-  const posts = JSON.parse(readFileSync("./urls.json").toString());
+  const posts = JSON.parse(readFileSync("./data/urls.json").toString());
 
   const postsList: string[] = [];
 
-  for (const [index, url] of posts.splice(0, 1).entries()) {
+  for (const [index, url] of posts.entries()) {
     try {
       const posts = await getUrls(url);
 
-      const data = await getPost(posts[0]);
-
-      console.log(data);
-
-      writeFileSync("./post.md", data.content);
-
-      // postsList.push(...posts);
+      for (const post of posts) {
+        await getPost(post);
+      }
 
       console.log(green(`Posts index succedess: ${index}`));
     } catch (error) {
@@ -107,4 +112,8 @@ const init = async () => {
   writeFileSync("./posts.json", JSON.stringify(postsList));
 };
 
-init();
+// init();
+
+const url = "https://www.pdhre.org/best-hp-255-g3-batteries/";
+
+getPost(url);
