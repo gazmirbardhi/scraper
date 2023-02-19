@@ -89,7 +89,7 @@ const getPost = async (postPath: string) => {
         if (!urlPath) {
           postContent = postContent.replace(
             imageUrl,
-            `<Image alt={"${data.title}"} src={"/images/not-found.jpg"} priority layout="fill" />`
+            `<ExportedImage alt={"${data.title}"} src={"/images/not-found.jpg"} priority layout="fill" />`
           );
         } else {
           const imagePath = await downloadImage(urlPath[1]);
@@ -97,12 +97,12 @@ const getPost = async (postPath: string) => {
           if (imagePath && urlPath.input)
             postContent = postContent.replace(
               urlPath.input,
-              `<Image alt={"${data.title}"} src={"${imagePath}"} priority layout="fill" />`
+              `<ExportedImage alt={"${data.title}"} src={"${imagePath}"} priority layout="fill" />`
             );
           else
             postContent = postContent.replace(
               imageUrl,
-              `<Image alt={"${data.title}"} src={"/images/not-found.jpg"} priority layout="fill" />`
+              `<ExportedImage alt={"${data.title}"} src={"/images/not-found.jpg"} priority layout="fill" />`
             );
         }
       }
@@ -125,7 +125,7 @@ const getPost = async (postPath: string) => {
       150
     )}"\ndate: "${moment(new Date()).format("YYYY-MM-DD")}"\nimage: "${
       data.image
-    }"\n---\n\n<Image alt={"${data.title}"} src={"${
+    }"\n---\n\n<ExportedImage alt={"${data.title}"} src={"${
       data.image
     }"} priority layout="fill" />\n${data.content}`
   );
