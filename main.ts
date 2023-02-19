@@ -7,10 +7,26 @@ import { config } from "dotenv";
 import { writeFileSync, readFileSync } from "fs";
 import Downloader from "nodejs-file-downloader";
 import slugify from "slugify";
+import moment from "moment";
 
 config();
 
 const amazonCode = process.env.AMAZONE_CODE ?? "djguider-20";
+
+const downloadImage = async (imageUrl: string) => {
+  const downloader = new Downloader({
+    url: imageUrl, //If the file name already exists, a new file with the name 200MB1.zip is created.
+    directory: "./images", //This folder will be created, if it doesn't exist.
+  });
+
+  try {
+    const { filePath, downloadStatus } = await downloader.download(); //Downloader.download() resolves with some useful properties.
+
+    if (filePath) return filePath.replace("./images/", "/images/");
+  } catch (error) {
+    console.log(error);
+  }
+};
 
 const getUrls = async (urlPath: string) => {
   const urls: string[] = [];
@@ -44,33 +60,58 @@ const getPost = async (postPath: string) => {
   };
 
   try {
-    data.title = $("h1.post-title").text() ?? "";
+    data.title = $("h1.entry-title").text() ?? "";
   } catch (error) {}
 
   try {
     const image = $("img.wp-post-image").attr("src");
 
     if (image && image.trim().length > 0) {
-      const downloader = new Downloader({
-        url: image, //If the file name already exists, a new file with the name 200MB1.zip is created.
-        directory: "./images", //This folder will be created, if it doesn't exist.
-      });
-      try {
-        const { filePath, downloadStatus } = await downloader.download(); //Downloader.download() resolves with some useful properties.
+      const imageUrl = await downloadImage(image);
 
-        if (filePath)
-          data.image = filePath.replace("./images/", "/images/posts/");
-      } catch (error) {}
+      if (imageUrl) data.image = imageUrl;
     }
   } catch (error) {}
 
   try {
     const content = $("div.entry-content").html() ?? "";
 
-    data.content = NodeHtmlMarkdown.translate(
+    let postContent = NodeHtmlMarkdown.translate(
       content.replaceAll("pdhresalam-20", amazonCode)
-    );
-  } catch (error) {}
+    ) as string;
+
+    const imageUrls = postContent.match(/!\[(.*?)\]\((.*?)\)/g);
+
+    if (imageUrls) {
+      for (const imageUrl of imageUrls) {
+        const urlPath = imageUrl.match(/\((.*?)\)/);
+
+        if (!urlPath) {
+          postContent = postContent.replace(
+            imageUrl,
+            `<Image alt={"${data.title}"} src={"/images/not-found.jpg"} priority layout="fill" />`
+          );
+        } else {
+          const imagePath = await downloadImage(urlPath[1]);
+
+          if (imagePath && urlPath.input)
+            postContent = postContent.replace(
+              urlPath.input,
+              `<Image alt={"${data.title}"} src={"${imagePath}"} priority layout="fill" />`
+            );
+          else
+            postContent = postContent.replace(
+              imageUrl,
+              `<Image alt={"${data.title}"} src={"/images/not-found.jpg"} priority layout="fill" />`
+            );
+        }
+      }
+    }
+
+    data.content = postContent;
+  } catch (error) {
+    console.log(error);
+  }
 
   const postFilePath = slugify(data.title, {
     lower: true,
@@ -78,15 +119,15 @@ const getPost = async (postPath: string) => {
   });
 
   writeFileSync(
-    `./posts/${postFilePath}.md`,
+    `./posts/${postFilePath}.mdx`,
     `---\ntitle: "${data.title}"\ndescription: "${data.content.slice(
       0,
       150
-    )}"\ndate: "${new Date().toISOString()}"\nimage: "${
+    )}"\ndate: "${moment(new Date()).format("YYYY-MM-DD")}"\nimage: "${
       data.image
-    }"\ncategories: []\nauthors: ["Deana Stallings"]\ntags: []\ndraft: false\n---\n\n${
-      data.content
-    }`
+    }"\n---\n\n<Image alt={"${data.title}"} src={"${
+      data.image
+    }"} priority layout="fill" />\n${data.content}`
   );
 };
 
@@ -112,8 +153,4 @@ const init = async () => {
   writeFileSync("./posts.json", JSON.stringify(postsList));
 };
 
-// init();
-
-const url = "https://www.pdhre.org/best-hp-255-g3-batteries/";
-
-getPost(url);
+init();
