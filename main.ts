@@ -77,7 +77,7 @@ const getPost = async (postPath: string) => {
     const content = $("div.entry-content").html() ?? "";
 
     let postContent = NodeHtmlMarkdown.translate(
-      content.replaceAll("pdhresalam-20", amazonCode)
+      content.replaceAll("pantryforkitc-20", amazonCode)
     ) as string;
 
     const imageUrls = postContent.match(/!\[(.*?)\]\((.*?)\)/g);
